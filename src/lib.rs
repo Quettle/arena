@@ -53,6 +53,14 @@ impl Arena {
 
 unsafe impl Allocator for &Arena {
     fn allocate(&self, layout: std::alloc::Layout) -> Result<NonNull<[u8]>, AllocError> {
+        if layout.size() == 0 {
+            return unsafe {
+                Ok(NonNull::new_unchecked(std::ptr::slice_from_raw_parts_mut(
+                    layout.dangling().as_ptr(),
+                    layout.size(),
+                )))
+            };
+        }
         let padding = self.padding(layout).ok_or(AllocError)?;
         let padded_ptr = unsafe {
             (self.allocation.as_ptr())
@@ -115,5 +123,11 @@ mod tests {
         let mut a: Vec<u8, _> = Vec::new_in(&arena);
         a.extend(0..24);
         assert!(!arena.can_fit::<u8>());
+    }
+
+    #[test]
+    fn test_zero_sized() {
+        let arena = Arena::with_capacity(8).unwrap();
+        let _ = Box::new_in((), &arena);
     }
 }
